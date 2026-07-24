@@ -5,3 +5,4 @@ v4 - Mudanças no design, placa mais estreita.
 v5 - Mudanças nas trilhas e furos.
 v6 - Mudanças nas trilhas e rotas.
 v7 - Alterações nas trilhas, criação de Nets (GND, Trash), pequenas mudanças nas rotas.
+v8 - Mudanças nas trilhas, aumento dos furos, aumento do espaço em branco ao redor das regiões cobreadas, adição de arquivos de GBR e DRL. Versão impressa.
