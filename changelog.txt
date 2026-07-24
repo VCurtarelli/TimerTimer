@@ -4,3 +4,4 @@ v3 - Concluído primeiro redesign.
 v4 - Mudanças no design, placa mais estreita.
 v5 - Mudanças nas trilhas e furos.
 v6 - Mudanças nas trilhas e rotas.
+v7 - Alterações nas trilhas, criação de Nets (GND, Trash), pequenas mudanças nas rotas.
