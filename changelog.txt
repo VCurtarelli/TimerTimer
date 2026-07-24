@@ -3,3 +3,4 @@ v2 - Recomeçando redesign.
 v3 - Concluído primeiro redesign.
 v4 - Mudanças no design, placa mais estreita.
 v5 - Mudanças nas trilhas e furos.
+v6 - Mudanças nas trilhas e rotas.
