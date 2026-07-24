@@ -21,7 +21,7 @@
       "footprints": true,
       "graphics": true,
       "keepouts": true,
-      "lockedItems": false,
+      "lockedItems": true,
       "otherItems": true,
       "pads": true,
       "text": true,
@@ -63,7 +63,7 @@
     "ssh_key": ""
   },
   "meta": {
-    "filename": "design pcb v3.kicad_prl",
+    "filename": "design pcb.kicad_prl",
     "version": 5
   },
   "net_inspector_panel": {
@@ -92,16 +92,16 @@
       9
     ],
     "col_widths": [
-      186,
-      171,
-      112,
+      162,
+      147,
+      98,
       79,
-      112,
-      112,
-      112,
+      91,
+      99,
+      91,
       83,
-      112,
-      112
+      91,
+      91
     ],
     "custom_group_rules": [],
     "expanded_rows": [],
