@@ -1,2 +1,3 @@
 v1 - Versão inicial.
 v2 - Recomeçando redesign.
+v3 - Concluído primeiro redesign.
