@@ -1,1 +1,2 @@
-Versão inicial.
+v1 - Versão inicial.
+v2 - Recomeçando redesign.
