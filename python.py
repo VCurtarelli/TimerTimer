@@ -11,6 +11,7 @@ import serial.tools.list_ports
 BAUD_RATE = 115200
 NUM_PINS = 40
 HEADER = 0xAA
+PRINT_ACTIVE_PINS = False
 
 ARDUINO_KEYWORDS = [
     "arduino",
@@ -30,8 +31,7 @@ def select_and_connect_port(baud_rate=BAUD_RATE):
     ports = list(serial.tools.list_ports.comports())
     if not ports:
         raise IOError(
-            "❌ No serial ports detected on this computer. Check USB"
-            " connections."
+            "❌ No serial ports detected on this computer. Check USB connections."
         )
 
     matching_ports = []
@@ -94,9 +94,18 @@ def process_packet(payload):
 def get_time():
     return datetime.now().strftime("%Y-%m-%d-%Hh%Mm%Ss")
 
+def comp_time(t1, t2, res=1):
+    return [f'{(int(val) - int(t2))/1000:.{res}f}' for val in t1]
 
-def comp_time(t1, t2):
-    return [str((int(val) - int(t2)) // 1000) for val in t1]
+def get_unix_time_ms():
+    return time.time_ns() // 1000000
+
+
+def print_active_pins(pins, message_count):
+    active_count = sum(pins)
+    pins = ''.join([('1' if pin==True else '0') for pin in pins])
+    pin_blocks = ' '.join([pins[i:i+10] for i in range(0, len(pins), 10)])
+    print(f"[{message_count}] Active Pins: {active_count}/40  |  {pin_blocks}")
 
 
 # --- Logic Classes ---
@@ -121,11 +130,11 @@ class Reader:
         self.swt_reads.append(nxt_swt_reads)
         self.current_gtr_state = nxt_gtr_reads
 
-        self.state_machine(nxt_gtr_reads, nxt_swt_reads, unix_time)
+        self.state_machine(nxt_gtr_reads, unix_time)
 
     def run_enable(self, unix_time=None):
         if unix_time is None:
-            unix_time = time.time_ns() // 1000000
+            unix_time = get_unix_time_ms()
         self.enabled = True
         self.gtr_reads = []
         self.gtr_switch_times = {unix_time: "LIGADO"}
@@ -135,13 +144,13 @@ class Reader:
 
     def run_reset(self, unix_time=None):
         if unix_time is None:
-            unix_time = time.time_ns() // 1000000
+            unix_time = get_unix_time_ms()
         self.gtr_switch_times[unix_time] = "RESET"
-        self.save_port_data(temp=True)
+        self.save_port_data(temp=False)
         self.gtr_reads = []
         self.gtr_switch_times = {unix_time: "RESET"}
 
-    def state_machine(self, nxt_gtr_reads, nxt_swt_reads, unix_time):
+    def state_machine(self, nxt_gtr_reads, unix_time):
         n_set = 2
         n_dis = 10
         set_reset_check = (self.swt_reads[-n_set:].count(True) == n_set) and (
@@ -262,7 +271,7 @@ class PortCard(tk.LabelFrame):
         # Toggle Button
         self.enable_btn = tk.Button(
             self,
-            text="Abilitar",
+            text="Enable",
             width=8,
             command=self.gui_toggle_enable,
             bg="#e0e0e0",
@@ -284,6 +293,7 @@ class PortCard(tk.LabelFrame):
     def gui_toggle_enable(self):
         """User clicked the Enable/Disable button in GUI."""
         if self.reader.enabled:
+            self.reader.run_reset()
             self.reader.run_disable()
         else:
             self.reader.run_enable()
@@ -305,13 +315,13 @@ class PortCard(tk.LabelFrame):
 
         # 2. Update toggle button appearance & Reset button interaction
         if self.reader.enabled:
-            self.enable_btn.config(text="Desabilitar", bg="#d9534f", fg="white")
+            self.enable_btn.config(text="Disable", bg="#d9534f", fg="white")
             # Enable Reset button
             self.reset_btn.config(
                 state="normal", bg="#e0e0e0", fg="black", cursor="hand2"
             )
         else:
-            self.enable_btn.config(text="Abilitar", bg="#e0e0e0", fg="black")
+            self.enable_btn.config(text="Enable", bg="#e0e0e0", fg="black")
             # Gray-out and disable Reset button
             self.reset_btn.config(
                 state="disabled",
@@ -325,7 +335,7 @@ class AppGUI(tk.Tk):
 
     def __init__(self, data_processor, serial_conn):
         super().__init__()
-        self.title("Arduino Port Monitor & Controller")
+        self.title("Timer Timer - Monitor e controle de portas")
         self.configure(bg="#e6e6e6")
 
         self.processor = data_processor
@@ -358,6 +368,7 @@ class AppGUI(tk.Tk):
 
         self.protocol("WM_DELETE_WINDOW", self.on_close)
 
+
     def serial_listen_loop(self):
         cwd = self.processor.directory
         pending_files = []
@@ -373,7 +384,7 @@ class AppGUI(tk.Tk):
                     remaining_bytes = self.ser.read(6)
                     if len(remaining_bytes) == 6:
                         message_count += 1
-                        read_time_ms = time.time_ns() // 1000000
+                        read_time_ms = get_unix_time_ms()
                         full_packet = bytearray([HEADER]) + remaining_bytes
                         pins = process_packet(full_packet)
 
@@ -382,10 +393,8 @@ class AppGUI(tk.Tk):
                             with open(filepath, "wb") as f:
                                 f.write(full_packet)
 
-                            active_count = sum(pins)
-                            pins = ''.join([('1' if pin==True else '0') for pin in pins])
-                            pin_blocks = ' '.join([pins[i:i+10] for i in range(0, len(pins), 10)])
-                            print(f"[{message_count}] Active Pins: {active_count}/40  |  {pin_blocks}")
+                            if PRINT_ACTIVE_PINS:
+                                print_active_pins(pins, message_count)
 
                             pending_files.append(filepath)
 
