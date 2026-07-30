@@ -10,10 +10,6 @@ BAUD_RATE = 115200
 NUM_PINS = 40
 HEADER = 0xAA
 
-import time
-import serial
-import serial.tools.list_ports
-
 # Standard vendor/device identifiers for Arduino UNO, Mega, Nano, and common USB-Serial chips (CH340, FTDI, CP210x)
 ARDUINO_KEYWORDS = ["arduino", "ch340", "ftdi", "cp210x", "usb-serial", "ttyacm", "ttyusb"]
 
@@ -82,7 +78,7 @@ def select_and_connect_port(baud_rate=BAUD_RATE):
 
 
 def process_packet(payload):
-    """Verifies checksum and unpacks 5 data bytes into a list of 40 booleans."""
+    #Verifies checksum and unpacks 5 data bytes into a list of 40 booleans.
     checksum = 0
     for byte in payload[0:6]:
         checksum ^= byte
@@ -104,15 +100,22 @@ def process_packet(payload):
 
 
 def get_time():
+    # Gets current time formatted as YY-mm-dd-hhmmss
     now = datetime.now()
     return now.strftime("%Y-%m-%d-%Hh%Mm%Ss")
 
 
+def comp_time(t1, t2):
+    # Compares a times vector with another value
+    return [str((int(val) - int(t2))//1000) for val in t1]
+
+
 class Reader:
 
-    def __init__(self, gtr_pin, swt_pin, direc):
+    def __init__(self, swt_pin, gtr_pin, direc):
         self.gtr_pin = gtr_pin
         self.swt_pin = swt_pin
+        self.port_num = int(gtr_pin//2 + 1)
 
         self.gtr_reads = []
         self.swt_reads = []
@@ -121,66 +124,88 @@ class Reader:
         self.enabled = False
         self.directory = Path(direc)
 
-    def read_from_packet(self, pin_data, timestamp):
+    def read_from_packet(self, pin_data, unix_time):
         nxt_swt_reads = pin_data[self.swt_pin]
+        nxt_gtr_reads = pin_data[self.gtr_pin]
         self.swt_reads.append(nxt_swt_reads)
 
         # State machine transition handling
-        recent_3_swt = self.swt_reads[-3:].count(True) == 3
-        recent_10_swt = self.swt_reads[-10:].count(True) == 10
+        self.state_machine(nxt_gtr_reads, nxt_swt_reads, unix_time)
 
+    def run_enable(self):
+        self.enabled = True
+        self.gtr_reads = []
+        self.gtr_switch_times = {unix_time: "LIGADO"}
+
+    def run_disable(self):
+        self.enabled = False
+
+    def run_reset(self):
+        self.gtr_switch_times[unix_time] = "RESET"
+        self.save_data()
+        self.gtr_reads = []
+        self.gtr_switch_times = {unix_time: "RESET"}
+
+    def state_machine(self, nxt_gtr_reads, nxt_swt_reads, unix_time):
+        recent_3_swt = (self.swt_reads[-3:].count(True) == 3) and (not self.swt_reads[-4])
+        recent_10_swt = self.swt_reads[-10:].count(True) == 10 and (not self.swt_reads[-11])
+
+        print(f'Enabled: {self.enabled}')
+        print(f' Switch: {nxt_swt_reads}')
+        print(f'  Gator: {nxt_gtr_reads}')
         if self.enabled and recent_10_swt:
             # Disable port if held down for 10 samples
-            self.enabled = False
-            self.save_data()
+            self.run_disable()
 
         elif not self.enabled and recent_3_swt:
-            # Enable port
-            self.enabled = True
-            self.gtr_reads = []
-            self.gtr_switch_times = {timestamp: "LIGADO"}
+            # Enable port if switch is held down for 3 samples
+            self.run_enable()
 
         elif self.enabled and recent_3_swt:
-            # Reset port
-            self.save_data()
-            self.gtr_reads = []
-            self.gtr_switch_times = {timestamp: "RESET"}
+            # Reset port if switch is held down for 3 samples
+            self.run_reset()
 
         # Track Gator Pin toggles when enabled
         if self.enabled:
-            nxt_gtr_reads = pin_data[self.gtr_pin]
             self.gtr_reads.append(nxt_gtr_reads)
 
             # Requires at least 2 readings to compare state change
             if len(self.gtr_reads) >= 2:
                 if self.gtr_reads[-1] != self.gtr_reads[-2]:
-                    self.gtr_switch_times[timestamp] = (
+                    self.gtr_switch_times[unix_time] = (
                         "On" if nxt_gtr_reads else "Off"
                     )
+                    if nxt_gtr_reads:
+                        print("On")
+                    else:
+                        print("Off")
 
-    def save_data(self, timestamp=None):
+    def save_port_data(self, timestamp=None, temp=False):
+        # Saves port data to a .csv file
         if not self.gtr_switch_times:
-            return  # Nothing to save
+            return None  # Nothing to save
 
         if timestamp is None:
             timestamp = get_time()
 
-        port_num = int(1 + self.gtr_pin // 2)
-        port_name = f"{timestamp}--port-{port_num}"
-
-        port_txt_l1 = ",".join(self.gtr_switch_times.keys())
+        port_num = self.port_num
+        port_name = f"port-{port_num}--{timestamp}"
+        print(len(self.gtr_switch_times.keys()))
+        port_txt_l1 = ",".join(comp_time(self.gtr_switch_times.keys(), self.gtr_switch_times.keys[0]))
         port_txt_l2 = ",".join(self.gtr_switch_times.values())
         port_txt = f"{port_txt_l1}\n{port_txt_l2}"
 
         save_dir = self.directory / "medicoes"
-        save_dir.mkdir(parents=True, exist_ok=True)
+        if temp:
+            save_dir = save_dir / ".temp"
 
         with open(save_dir / f"{port_name}.csv", "w", encoding="utf-8") as f:
             f.write(port_txt)
 
+        return port_txt
+
 
 class DataProcessor:
-
     def __init__(self, directory):
         self.directory = Path(directory)
         self.readers = [
@@ -188,6 +213,8 @@ class DataProcessor:
             for port in range(0, NUM_PINS, 2)
         ]
         self.processed_files = set()
+
+        (self.directory / "medicoes" / ".temp").mkdir(parents=True, exist_ok=True)
 
     def process_data(self, files=None):
         if files is None:
@@ -213,8 +240,9 @@ class DataProcessor:
             self.processed_files.add(file_path)
 
         timestamp = get_time()
+
         for reader in self.readers:
-            reader.save_data(timestamp)
+            reader.save_port_data(timestamp, temp=True)
 
 
 def main():
@@ -225,6 +253,7 @@ def main():
     (cwd / "medicoes").mkdir(parents=True, exist_ok=True)
 
     try:
+        # Try to connect to Serial
         ser = select_and_connect_port(BAUD_RATE)
         time.sleep(2)
 
@@ -232,37 +261,35 @@ def main():
         data_processor = DataProcessor(cwd)
         pending_files = []
 
+        # While running
         while True:
             byte_in = ser.read(1)
-            print(byte_in)
-            if not byte_in:
+            if not byte_in:  # Check if received something through the Serial
                 continue
 
-            if byte_in[0] == HEADER:
+            if byte_in[0] == HEADER:  # If it is the HEADER byte (0xAA), procede
                 remaining_bytes = ser.read(6)
 
-                if len(remaining_bytes) == 6:
+                if len(remaining_bytes) == 6:  # If the rest read has 6 extra bytes, continue
                     read_time_ms = time.time_ns() // 1000000  # Convert to ms
                     full_packet = bytearray([HEADER]) + remaining_bytes
-                    pins = process_packet(full_packet)
+                    pins = process_packet(full_packet)  # Processes and checks the 7-byte packet
 
                     if pins is not None:
                         message_count += 1
                         filepath = cwd / "data" / f"{read_time_ms}.bin"
 
-                        with open(filepath, "wb") as f:
+                        with open(filepath, "wb") as f:  # Saves the packet to a file
                             f.write(full_packet)
 
-                        active_count = sum(pins)
-                        pins = ''.join([('1' if pin==True else '0') for pin in pins])
-                        pin_blocks = ' '.join([pins[i:i+10] for i in range(0, len(pins), 10)])
-                        print(
-                            f"[{message_count}] Active Pins: {active_count}/40  |  {pin_blocks}"
-                        )
+                        # active_count = sum(pins)
+                        # pins = ''.join([('1' if pin==True else '0') for pin in pins])
+                        # pin_blocks = ' '.join([pins[i:i+10] for i in range(0, len(pins), 10)])
+                        # print(f"[{message_count}] Active Pins: {active_count}/40  |  {pin_blocks}")
                         pending_files.append(filepath)
 
-            # Batch processing every 10 packets
-            if message_count > 0 and message_count % 10 == 0 and pending_files:
+            # Batch processing
+            if message_count > 0 and pending_files:
                 data_processor.process_data(pending_files)
                 pending_files = []
 

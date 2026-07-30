@@ -2,3 +2,6 @@ v0.1.260724
 	Versão final do projeto anterior.
 v1.0.260726
 	Ao que parece está funcionando.
+v1.0.260730
+	Serialização e fatoração do código.
+	Alguns comentários.

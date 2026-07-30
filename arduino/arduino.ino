@@ -1,9 +1,9 @@
 // Array of 40 pins to monitor (e.g., for Arduino Mega)
 const int PINS[40] = {
-  3, 5, 7, 9, 11, 13, 15, 17, 19, 21,
-  // 23, 25, 27, 29, 31, 30, 28, 26, 24, 22,
-  // 46, 44, 42, 40, 38, 36, 34, 32, 33, 35,
-  // 20, 18, 16, 14, 12, 10, 8, 6, 4, 2
+  3, 5, 7, 9, 11, 43, 15, 17, 19, 21,
+  23, 25, 27, 29, 31, 30, 28, 26, 24, 22,
+  46, 44, 42, 40, 38, 36, 34, 32, 33, 35,
+  20, 18, 16, 14, 12, 10, 8, 6, 4, 2
 };
 /*
     R1 : S-3 , G-5
@@ -28,10 +28,14 @@ const int PINS[40] = {
     R20: S-4 , G-2
 */
 
-const int NUM_PINS = 10;
+const int NUM_PINS = 40;
 uint8_t pinData[7];  // 5 bytes * 8 bits = 40 pins
 unsigned long stt_time = 0;
 unsigned long time;
+const unsigned long WAIT_TIME = 100;  // Wait time between readings, in milliseconds
+int idx_min = 0;
+int idx_max = NUM_PINS;
+
 void setup() {
   Serial.begin(115200);  // 115200 baud is much faster than 9600
   for (int i = 0; i < NUM_PINS; i++) {
@@ -41,8 +45,8 @@ void setup() {
 
 void loop() {
   time = millis();
-  if (time >= stt_time + 1000) {
-    stt_time = stt_time + 1000;  // Adds 100ms to the start_time
+  if (time >= stt_time + WAIT_TIME) {
+    stt_time = stt_time + WAIT_TIME;  // Adds 100ms to the start_time
     // Clear buffer
     pinData[0] = 0xAA;  // Header
 
@@ -50,12 +54,16 @@ void loop() {
       pinData[i] = 0;
     }
 
-    for (int i = 0; i < NUM_PINS; i++) {
+    //for (int i = 0; i < NUM_PINS; i++) {
+    for (int i = idx_min; i < idx_max; i++) {
       // LOW means pin is active/pressed (True)
       if (digitalRead(PINS[i]) == LOW) {
         int byteIdx = i / 8;
         int bitIdx = i % 8;
         pinData[1 + byteIdx] |= (1 << bitIdx);  // Set bit to 1
+        // Serial.println(String(i/2+1)+"/"+String(i%2) + " - " + String(PINS[i]) + ": low");
+      } else {
+        // Serial.println(String(i/2+1)+"/"+String(i%2) + " - " + String(PINS[i]) + ": high");
       }
     }
 
