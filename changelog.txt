@@ -7,3 +7,5 @@ v1.0.260730
 	Alguns comentários.
 v1.1.260730
 	Adicionando uma GUI.
+	Mais um pouco de refatoração.
+	Adicionado um README.
