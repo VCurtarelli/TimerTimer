@@ -5,3 +5,5 @@ v1.0.260726
 v1.0.260730
 	Serialização e fatoração do código.
 	Alguns comentários.
+v1.1.260730
+	Adicionando uma GUI.

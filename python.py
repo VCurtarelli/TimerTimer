@@ -1,121 +1,111 @@
 from datetime import datetime
 from pathlib import Path
+import threading
 import time
+import tkinter as tk
+from tkinter import ttk
 import serial
 import serial.tools.list_ports
-
 
 # --- Configuration ---
 BAUD_RATE = 115200
 NUM_PINS = 40
 HEADER = 0xAA
 
-# Standard vendor/device identifiers for Arduino UNO, Mega, Nano, and common USB-Serial chips (CH340, FTDI, CP210x)
-ARDUINO_KEYWORDS = ["arduino", "ch340", "ftdi", "cp210x", "usb-serial", "ttyacm", "ttyusb"]
+ARDUINO_KEYWORDS = [
+    "arduino",
+    "ch340",
+    "ftdi",
+    "cp210x",
+    "usb-serial",
+    "ttyacm",
+    "ttyusb",
+]
+
+PORT_COLORS = ["#E5BF00", "#46E890", "#C0C0C0", "#202020"]
 
 
+# --- Existing Helpers & Serial Connections ---
 def select_and_connect_port(baud_rate=BAUD_RATE):
-    """
-    Attempts to auto-detect an Arduino port.
-    If 1 match is found -> Auto-connects.
-    If 0 or >1 matches found -> Prompts user with an interactive CLI menu.
-    """
     ports = list(serial.tools.list_ports.comports())
-
     if not ports:
-        raise IOError("❌ No serial ports detected on this computer. Check USB connections.")
+        raise IOError(
+            "❌ No serial ports detected on this computer. Check USB"
+            " connections."
+        )
 
-    # 1. Filter ports based on known Arduino/USB-Serial keywords
     matching_ports = []
     for port in ports:
         desc = (port.description or "").lower()
         mfg = (port.manufacturer or "").lower()
         dev = (port.device or "").lower()
-
-        if any(keyword in desc or keyword in mfg or keyword in dev for keyword in ARDUINO_KEYWORDS):
+        if any(
+            kw in desc or kw in mfg or kw in dev for kw in ARDUINO_KEYWORDS
+        ):
             matching_ports.append(port)
 
-    # 2. Decision Logic
     selected_port_name = None
-
     if len(matching_ports) == 1:
-        # Exactly one candidate found -> Auto-select
         auto_port = matching_ports[0]
-        print(f"🤖 Auto-detected device: {auto_port.device} ({auto_port.description})")
+        print(
+            f"🤖 Auto-detected device: {auto_port.device} ({auto_port.description})"
+        )
         selected_port_name = auto_port.device
-
     else:
-        # 0 or multiple candidates found -> Fallback to interactive menu
-        if len(matching_ports) > 1:
-            print(f"⚠️ Found {len(matching_ports)} candidate devices. Please select one:")
-        else:
-            print("⚠️ Could not automatically identify an Arduino. Please choose from all available ports:")
-
         print("\n--- Available Serial Ports ---")
         for idx, port in enumerate(ports):
             match_tag = " (Suggested)" if port in matching_ports else ""
             print(f" [{idx + 1}] {port.device} - {port.description}{match_tag}")
-
-        # Interactive user prompt
         while True:
             try:
                 choice = int(input("\nSelect port number to connect: ")) - 1
                 if 0 <= choice < len(ports):
                     selected_port_name = ports[choice].device
                     break
-                else:
-                    print(f"Invalid option. Please enter a number between 1 and {len(ports)}.")
             except ValueError:
-                print("Invalid input. Please enter a valid integer.")
+                pass
+            print("Invalid selection.")
 
-    # 3. Establish Serial Connection
     print(f"Connecting to {selected_port_name} at {baud_rate} baud...")
     ser = serial.Serial(selected_port_name, baud_rate, timeout=1)
-    time.sleep(2)  # Wait for Arduino auto-reset on connection
+    time.sleep(2)
     print("✅ Connection established successfully!")
-
     return ser
 
 
 def process_packet(payload):
-    #Verifies checksum and unpacks 5 data bytes into a list of 40 booleans.
     checksum = 0
     for byte in payload[0:6]:
         checksum ^= byte
-
     if checksum != payload[6]:
-        print(f"Checksum error! Packet corrupted/dropped.")
+        print("Checksum error! Packet corrupted/dropped.")
         return None
 
     data_bytes = payload[1:6]
     pin_states = []
-
     for i in range(NUM_PINS):
         byte_idx = i // 8
         bit_idx = i % 8
         is_on = bool((data_bytes[byte_idx] >> bit_idx) & 1)
         pin_states.append(is_on)
-
     return pin_states
 
 
 def get_time():
-    # Gets current time formatted as YY-mm-dd-hhmmss
-    now = datetime.now()
-    return now.strftime("%Y-%m-%d-%Hh%Mm%Ss")
+    return datetime.now().strftime("%Y-%m-%d-%Hh%Mm%Ss")
 
 
 def comp_time(t1, t2):
-    # Compares a times vector with another value
-    return [str((int(val) - int(t2))//1000) for val in t1]
+    return [str((int(val) - int(t2)) // 1000) for val in t1]
 
 
+# --- Logic Classes ---
 class Reader:
 
     def __init__(self, swt_pin, gtr_pin, direc):
         self.gtr_pin = gtr_pin
         self.swt_pin = swt_pin
-        self.port_num = int(gtr_pin//2 + 1)
+        self.port_num = int(gtr_pin // 2 + 1)
 
         self.gtr_reads = []
         self.swt_reads = []
@@ -123,16 +113,19 @@ class Reader:
 
         self.enabled = False
         self.directory = Path(direc)
+        self.current_gtr_state = False
 
     def read_from_packet(self, pin_data, unix_time):
         nxt_swt_reads = pin_data[self.swt_pin]
         nxt_gtr_reads = pin_data[self.gtr_pin]
         self.swt_reads.append(nxt_swt_reads)
+        self.current_gtr_state = nxt_gtr_reads
 
-        # State machine transition handling
         self.state_machine(nxt_gtr_reads, nxt_swt_reads, unix_time)
 
-    def run_enable(self):
+    def run_enable(self, unix_time=None):
+        if unix_time is None:
+            unix_time = time.time_ns() // 1000000
         self.enabled = True
         self.gtr_reads = []
         self.gtr_switch_times = {unix_time: "LIGADO"}
@@ -140,58 +133,49 @@ class Reader:
     def run_disable(self):
         self.enabled = False
 
-    def run_reset(self):
+    def run_reset(self, unix_time=None):
+        if unix_time is None:
+            unix_time = time.time_ns() // 1000000
         self.gtr_switch_times[unix_time] = "RESET"
-        self.save_data()
+        self.save_port_data(temp=True)
         self.gtr_reads = []
         self.gtr_switch_times = {unix_time: "RESET"}
 
     def state_machine(self, nxt_gtr_reads, nxt_swt_reads, unix_time):
-        recent_3_swt = (self.swt_reads[-3:].count(True) == 3) and (not self.swt_reads[-4])
-        recent_10_swt = self.swt_reads[-10:].count(True) == 10 and (not self.swt_reads[-11])
+        n_set = 2
+        n_dis = 10
+        set_reset_check = (self.swt_reads[-n_set:].count(True) == n_set) and (
+            not self.swt_reads[-(n_set+1)] if len(self.swt_reads) >= (n_set+1) else False
+        )
+        disable_check = (self.swt_reads[-n_dis:].count(True) == n_dis) and (
+            not self.swt_reads[-(n_dis+1)] if len(self.swt_reads) >= (n_dis+1) else False
+        )
 
-        print(f'Enabled: {self.enabled}')
-        print(f' Switch: {nxt_swt_reads}')
-        print(f'  Gator: {nxt_gtr_reads}')
-        if self.enabled and recent_10_swt:
-            # Disable port if held down for 10 samples
+        if self.enabled and disable_check:
             self.run_disable()
+        elif not self.enabled and set_reset_check:
+            self.run_enable(unix_time)
+        elif self.enabled and set_reset_check:
+            self.run_reset(unix_time)
 
-        elif not self.enabled and recent_3_swt:
-            # Enable port if switch is held down for 3 samples
-            self.run_enable()
-
-        elif self.enabled and recent_3_swt:
-            # Reset port if switch is held down for 3 samples
-            self.run_reset()
-
-        # Track Gator Pin toggles when enabled
         if self.enabled:
             self.gtr_reads.append(nxt_gtr_reads)
-
-            # Requires at least 2 readings to compare state change
             if len(self.gtr_reads) >= 2:
                 if self.gtr_reads[-1] != self.gtr_reads[-2]:
                     self.gtr_switch_times[unix_time] = (
                         "On" if nxt_gtr_reads else "Off"
                     )
-                    if nxt_gtr_reads:
-                        print("On")
-                    else:
-                        print("Off")
 
     def save_port_data(self, timestamp=None, temp=False):
-        # Saves port data to a .csv file
         if not self.gtr_switch_times:
-            return None  # Nothing to save
+            return None
 
         if timestamp is None:
             timestamp = get_time()
 
-        port_num = self.port_num
-        port_name = f"port-{port_num}--{timestamp}"
-        print(len(self.gtr_switch_times.keys()))
-        port_txt_l1 = ",".join(comp_time(self.gtr_switch_times.keys(), self.gtr_switch_times.keys[0]))
+        port_name = f"port-{self.port_num}--{timestamp}"
+        keys_list = list(self.gtr_switch_times.keys())
+        port_txt_l1 = ",".join(comp_time(keys_list, keys_list[0]))
         port_txt_l2 = ",".join(self.gtr_switch_times.values())
         port_txt = f"{port_txt_l1}\n{port_txt_l2}"
 
@@ -199,6 +183,7 @@ class Reader:
         if temp:
             save_dir = save_dir / ".temp"
 
+        save_dir.mkdir(parents=True, exist_ok=True)
         with open(save_dir / f"{port_name}.csv", "w", encoding="utf-8") as f:
             f.write(port_txt)
 
@@ -206,6 +191,7 @@ class Reader:
 
 
 class DataProcessor:
+
     def __init__(self, directory):
         self.directory = Path(directory)
         self.readers = [
@@ -213,14 +199,19 @@ class DataProcessor:
             for port in range(0, NUM_PINS, 2)
         ]
         self.processed_files = set()
-
-        (self.directory / "medicoes" / ".temp").mkdir(parents=True, exist_ok=True)
+        (self.directory / "medicoes" / ".temp").mkdir(
+            parents=True, exist_ok=True
+        )
 
     def process_data(self, files=None):
         if files is None:
             data_dir = self.directory / "data"
             files = sorted(
-                [f for f in data_dir.glob("*.bin") if f not in self.processed_files],
+                [
+                    f
+                    for f in data_dir.glob("*.bin")
+                    if f not in self.processed_files
+                ],
                 key=lambda x: int(x.stem),
             )
 
@@ -240,67 +231,201 @@ class DataProcessor:
             self.processed_files.add(file_path)
 
         timestamp = get_time()
-
         for reader in self.readers:
             reader.save_port_data(timestamp, temp=True)
 
 
+# --- GUI Implementation ---
+class PortCard(tk.LabelFrame):
+
+    def __init__(self, parent, reader_instance, border_color):
+        self.reader = reader_instance
+        super().__init__(
+            parent,
+            text=f" Porta {self.reader.port_num} ",
+            font=("Arial", 10, "bold"),
+            highlightbackground=border_color,
+            highlightcolor=border_color,
+            highlightthickness=3,
+            bd=1,
+            relief="solid",
+            padx=10,
+            pady=8,
+        )
+
+        # GTR Reading Label (ON / OFF)
+        self.status_label = tk.Label(
+            self, text="OFF", font=("Arial", 11, "bold"), fg="gray"
+        )
+        self.status_label.pack(anchor="e", pady=(0, 4))
+
+        # Toggle Button
+        self.enable_btn = tk.Button(
+            self,
+            text="Abilitar",
+            width=8,
+            command=self.gui_toggle_enable,
+            bg="#e0e0e0",
+            relief="groove",
+        )
+        self.enable_btn.pack(pady=2)
+
+        # Reset Button
+        self.reset_btn = tk.Button(
+            self,
+            text="Reset",
+            width=8,
+            command=self.gui_trigger_reset,
+            bg="#e0e0e0",
+            relief="groove",
+        )
+        self.reset_btn.pack(pady=2)
+
+    def gui_toggle_enable(self):
+        """User clicked the Enable/Disable button in GUI."""
+        if self.reader.enabled:
+            self.reader.run_disable()
+        else:
+            self.reader.run_enable()
+        self.refresh_ui()
+
+    def gui_trigger_reset(self):
+        """User clicked the Reset button in GUI."""
+        if self.reader.enabled:
+            self.reader.run_reset()
+            self.refresh_ui()
+
+    def refresh_ui(self):
+        """Syncs the card visual components with current Reader values."""
+        # 1. Update GTR state label
+        if self.reader.current_gtr_state:
+            self.status_label.config(text="ON", fg="black")
+        else:
+            self.status_label.config(text="OFF", fg="gray")
+
+        # 2. Update toggle button appearance & Reset button interaction
+        if self.reader.enabled:
+            self.enable_btn.config(text="Desabilitar", bg="#d9534f", fg="white")
+            # Enable Reset button
+            self.reset_btn.config(
+                state="normal", bg="#e0e0e0", fg="black", cursor="hand2"
+            )
+        else:
+            self.enable_btn.config(text="Abilitar", bg="#e0e0e0", fg="black")
+            # Gray-out and disable Reset button
+            self.reset_btn.config(
+                state="disabled",
+                bg="#f0f0f0",
+                disabledforeground="#a1a1a1",
+                cursor="",
+            )
+
+
+class AppGUI(tk.Tk):
+
+    def __init__(self, data_processor, serial_conn):
+        super().__init__()
+        self.title("Arduino Port Monitor & Controller")
+        self.configure(bg="#e6e6e6")
+
+        self.processor = data_processor
+        self.ser = serial_conn
+        self.cards = []
+        self.is_running = True
+
+        # Render 4 rows x 5 columns grid
+        grid_frame = tk.Frame(self, bg="#e6e6e6", padx=10, pady=10)
+        grid_frame.pack()
+
+        for idx, reader in enumerate(self.processor.readers):
+            ncols = 4
+            row = idx // ncols
+            col = idx % ncols
+            color = PORT_COLORS[idx % len(PORT_COLORS)]
+
+            card = PortCard(grid_frame, reader, border_color=color)
+            card.grid(row=row, column=col, padx=6, pady=6)
+            self.cards.append(card)
+
+        # Start thread reading serial
+        self.reader_thread = threading.Thread(
+            target=self.serial_listen_loop, daemon=True
+        )
+        self.reader_thread.start()
+
+        # GUI update loop (Runs every 100ms)
+        self.poll_gui_updates()
+
+        self.protocol("WM_DELETE_WINDOW", self.on_close)
+
+    def serial_listen_loop(self):
+        cwd = self.processor.directory
+        pending_files = []
+
+        message_count = 0
+        while self.is_running:
+            try:
+                byte_in = self.ser.read(1)
+                if not byte_in:
+                    continue
+
+                if byte_in[0] == HEADER:
+                    remaining_bytes = self.ser.read(6)
+                    if len(remaining_bytes) == 6:
+                        message_count += 1
+                        read_time_ms = time.time_ns() // 1000000
+                        full_packet = bytearray([HEADER]) + remaining_bytes
+                        pins = process_packet(full_packet)
+
+                        if pins is not None:
+                            filepath = cwd / "data" / f"{read_time_ms}.bin"
+                            with open(filepath, "wb") as f:
+                                f.write(full_packet)
+
+                            active_count = sum(pins)
+                            pins = ''.join([('1' if pin==True else '0') for pin in pins])
+                            pin_blocks = ' '.join([pins[i:i+10] for i in range(0, len(pins), 10)])
+                            print(f"[{message_count}] Active Pins: {active_count}/40  |  {pin_blocks}")
+
+                            pending_files.append(filepath)
+
+                if pending_files:
+                    self.processor.process_data(pending_files)
+                    pending_files = []
+
+            except serial.SerialException:
+                break
+            except Exception as e:
+                print(f"Error reading serial stream: {e}")
+
+    def poll_gui_updates(self):
+        """Periodically refreshes the UI cards to mirror hardware state machines."""
+        for card in self.cards:
+            card.refresh_ui()
+
+        if self.is_running:
+            self.after(100, self.poll_gui_updates)
+
+    def on_close(self):
+        self.is_running = False
+        if self.ser and self.ser.is_open:
+            self.ser.close()
+        self.destroy()
+
+
+# --- Main Entry Point ---
 def main():
     cwd = Path.cwd()
-
-    # Ensure required subdirectories exist
     (cwd / "data").mkdir(parents=True, exist_ok=True)
     (cwd / "medicoes").mkdir(parents=True, exist_ok=True)
 
-    try:
-        # Try to connect to Serial
-        ser = select_and_connect_port(BAUD_RATE)
-        time.sleep(2)
+    # Establish Serial
+    ser = select_and_connect_port(BAUD_RATE)
 
-        message_count = 0
-        data_processor = DataProcessor(cwd)
-        pending_files = []
-
-        # While running
-        while True:
-            byte_in = ser.read(1)
-            if not byte_in:  # Check if received something through the Serial
-                continue
-
-            if byte_in[0] == HEADER:  # If it is the HEADER byte (0xAA), procede
-                remaining_bytes = ser.read(6)
-
-                if len(remaining_bytes) == 6:  # If the rest read has 6 extra bytes, continue
-                    read_time_ms = time.time_ns() // 1000000  # Convert to ms
-                    full_packet = bytearray([HEADER]) + remaining_bytes
-                    pins = process_packet(full_packet)  # Processes and checks the 7-byte packet
-
-                    if pins is not None:
-                        message_count += 1
-                        filepath = cwd / "data" / f"{read_time_ms}.bin"
-
-                        with open(filepath, "wb") as f:  # Saves the packet to a file
-                            f.write(full_packet)
-
-                        # active_count = sum(pins)
-                        # pins = ''.join([('1' if pin==True else '0') for pin in pins])
-                        # pin_blocks = ' '.join([pins[i:i+10] for i in range(0, len(pins), 10)])
-                        # print(f"[{message_count}] Active Pins: {active_count}/40  |  {pin_blocks}")
-                        pending_files.append(filepath)
-
-            # Batch processing
-            if message_count > 0 and pending_files:
-                data_processor.process_data(pending_files)
-                pending_files = []
-
-    except serial.SerialException as e:
-        print(f"Serial Error: {e}")
-    except KeyboardInterrupt:
-        print("\nStopping reader...")
-    finally:
-        if "ser" in locals() and ser.is_open:
-            ser.close()
-            print("Serial connection closed.")
+    # Initialize Processor and GUI
+    data_processor = DataProcessor(cwd)
+    app = AppGUI(data_processor, ser)
+    app.mainloop()
 
 
 if __name__ == "__main__":
