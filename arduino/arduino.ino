@@ -29,6 +29,8 @@ const int PINS[40] = {
 */
 
 const int NUM_PINS = 40;
+const int V_GROUND = 43;
+
 uint8_t pinData[7];  // 5 bytes * 8 bits = 40 pins
 unsigned long stt_time = 0;
 unsigned long time;
@@ -37,7 +39,9 @@ int idx_min = 0;
 int idx_max = NUM_PINS;
 
 void setup() {
-  Serial.begin(115200);  // 115200 baud is much faster than 9600
+  pinMode(V_GROUND, OUTPUT);
+  digitalWrite(V_GROUND, LOW);
+  Serial.begin(19200);  // 115200 baud is much faster than 9600
   for (int i = 0; i < NUM_PINS; i++) {
     pinMode(PINS[i], INPUT_PULLUP);
   }

@@ -7,7 +7,7 @@ import serial
 import serial.tools.list_ports
 
 # --- Configuration ---
-BAUD_RATE = 115200
+BAUD_RATE = 19200
 NUM_PINS = 40
 HEADER = 0xAA
 PRINT_ACTIVE_PINS = False
