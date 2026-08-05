@@ -15,8 +15,6 @@ v1.1.260805
 	Pequenas outras modificações.
 	Adicionadas orientações e código para compilação.
 	Adicionado ícone.
-	Modificado processo de salvar arquivos:
-	- .csv: A cada 0.1s, com precisão de décimos de segundo.
-	- .xlsx: No Reset/Disable da porta, precisão de segundos.
+	Salvamento automático salvo com precisão de ds, em Reset/Disable com precisão de segundo.
 	README atualizado.
 	Comunicações por CLI traduzidas para português.

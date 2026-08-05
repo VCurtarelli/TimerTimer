@@ -3,11 +3,8 @@ from pathlib import Path
 import threading
 import time
 import tkinter as tk
-from tkinter import ttk
 import serial
 import serial.tools.list_ports
-from io import StringIO
-import pandas as pd
 
 # --- Configuration ---
 BAUD_RATE = 115200
@@ -157,7 +154,7 @@ class Reader:
         if unix_time is None:
             unix_time = get_unix_time_ms()
         self.gtr_switch_times[unix_time] = "RESET"
-        self.save_port_data(temp=False, filetype="xlsx", use_deciseconds=False)
+        self.save_port_data(temp=False, use_deciseconds=False)
         self.gtr_reads = []
         self.gtr_switch_times = {unix_time: "RESET"}
 
@@ -186,7 +183,7 @@ class Reader:
                         "On" if nxt_gtr_reads else "Off"
                     )
 
-    def save_port_data(self, timestamp=None, temp=False, filetype='csv', use_deciseconds=True):
+    def save_port_data(self, timestamp=None, temp=False, use_deciseconds=True):
         if not self.gtr_switch_times:
             return None
 
@@ -204,14 +201,9 @@ class Reader:
             save_dir = save_dir / ".temp"
 
         save_dir.mkdir(parents=True, exist_ok=True)
-        if filetype in ('csv', '.csv'):
-            with open(save_dir / f"{port_name}.csv", "w", encoding="utf-8") as f:
-                f.write(port_txt)
-        elif filetype in ('xlsx', '.xlsx'):
-            df = pd.read_csv(StringIO(port_txt))
-            df.to_excel(save_dir / f"{port_name}.xlsx", index=False)
-        else:
-            raise AssertionError("Variável 'filetype' deve ser 'csv' ou 'xlsx'.")
+        with open(save_dir / f"{port_name}.csv", "w", encoding="utf-8") as f:
+            f.write(port_txt)
+
         return port_txt
 
 
