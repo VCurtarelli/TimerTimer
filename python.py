@@ -141,6 +141,7 @@ class Reader:
         self.state_machine(nxt_gtr_reads, unix_time)
 
     def run_enable(self, unix_time=None):
+        self.swt_reads[-1] = None
         if unix_time is None:
             unix_time = get_unix_time_ms()
         self.enabled = True
@@ -162,10 +163,10 @@ class Reader:
         n_set = 2
         n_dis = 10
         set_reset_check = (self.swt_reads[-n_set:].count(True) == n_set) and (
-            not self.swt_reads[-(n_set+1)] if len(self.swt_reads) >= (n_set+1) else False
+            (self.swt_reads[-(n_set+1)] is False) if len(self.swt_reads) >= (n_set+1) else False
         )
         disable_check = (self.swt_reads[-n_dis:].count(True) == n_dis) and (
-            not self.swt_reads[-(n_dis+1)] if len(self.swt_reads) >= (n_dis+1) else False
+            (self.swt_reads[-(n_dis+1)] is False) if len(self.swt_reads) >= (n_dis+1) else False
         )
 
         if self.enabled and disable_check:
@@ -222,7 +223,7 @@ class DataProcessor:
 
     def process_data(self, files=None):
         if files is None:
-            data_dir = self.directory / "data"
+            data_dir = self.directory / ".data"
             files = sorted(
                 [
                     f
@@ -404,7 +405,7 @@ class AppGUI(tk.Tk):
                         pins = process_packet(full_packet)
 
                         if pins is not None:
-                            filepath = cwd / "data" / f"{read_time_ms}.bin"
+                            filepath = cwd / ".data" / f"{read_time_ms}.bin"
                             with open(filepath, "wb") as f:
                                 f.write(full_packet)
 
@@ -440,7 +441,7 @@ class AppGUI(tk.Tk):
 # --- Main Entry Point ---
 def main():
     cwd = Path.cwd()
-    (cwd / "data").mkdir(parents=True, exist_ok=True)
+    (cwd / ".data").mkdir(parents=True, exist_ok=True)
     (cwd / "medicoes").mkdir(parents=True, exist_ok=True)
 
     print(r"""

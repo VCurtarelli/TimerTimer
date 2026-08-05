@@ -1,6 +1,7 @@
 .idea/
 .venv/
 data/
+.data/
 medicoes/
 build/
 dist/data/
