@@ -20,7 +20,7 @@ de 20 portas de leitura serial conectadas via Arduino.
 O sistema processa pacotes binários recebidos via Serial, gerencia o estado 
 das portas através de uma máquina de estados (aceitando comandos pela GUI ou 
 pelo botão físico do dispositivo) e salva o histórico de medições em arquivos 
-.csv e .xlsx.
+.csv.
 
 
 -------------------------------------------------------------------------------
@@ -70,7 +70,7 @@ Para execução com .py e/ou atualização do código do Arduino:
   │
   ├── data/                  Guarda os pacotes binários brutos (.bin)
   │
-  └── medicoes/              Histórico e exportação dos dados (.xlsx)
+  └── medicoes/              Histórico e exportação dos dados (.csv)
       └── .temp/             Arquivos de backup salvos a cada leitura (.csv)
 
 2. Os arquivos são salvos da seguinte forma:
@@ -82,9 +82,9 @@ Para execução com .py e/ou atualização do código do Arduino:
 
 
 -------------------------------------------------------------------------------
-5. FORMATO DOS DADOS SALVOS (.CSV ou .XLSX)
+5. FORMATO DOS DADOS SALVOS (.CSV)
 -------------------------------------------------------------------------------
-Cada arquivo .csv ou .xlsx gerado possui o seguinte formato:
+Cada arquivo .csv gerado possui o seguinte formato:
 
   Linha 1: Tempos decorridos (em segundos) em relação à primeira leitura.
   Linha 2: Registros de eventos ("LIGADO", "On", "Off", "RESET").
@@ -93,7 +93,7 @@ Cada arquivo .csv ou .xlsx gerado possui o seguinte formato:
 -------------------------------------------------------------------------------
 6. ESTRUTURA DE NOMENCLATURA DOS ARQUIVOS
 -------------------------------------------------------------------------------
-1. Os arquivos .csv e .xlsx seguem a convenção de nomenclatura:
+1. Os arquivos .csv seguem a convenção de nomenclatura:
    port-N--YYYY-MM-DD--HHhMMmSSs, onde:
 
      N:          Número da porta.
@@ -101,8 +101,8 @@ Cada arquivo .csv ou .xlsx gerado possui o seguinte formato:
      HHhMMmSSs:  Hora-Minuto-Segundo.
 
    * NOTA: O instante refere-se ao momento em que a porta foi Resetada.
-   * NOTA: Arquivos .csv (na pasta /medicoes/.temp/) são salvos com décimos de 
-     segundo; arquivos .xlsx (em /medicoes/) são salvos com segundos cheios.
+   * NOTA: Arquivos na pasta /medicoes/.temp/ são salvos com décimos de 
+     segundo; arquivos na pasta /medicoes/ são salvos com segundos cheios.
 
 2. Os arquivos .bin são salvos conforme o tempo Unix em milissegundos do 
    momento de recebimento do pacote binário.
