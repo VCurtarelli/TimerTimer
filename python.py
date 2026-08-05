@@ -6,6 +6,8 @@ import tkinter as tk
 from tkinter import ttk
 import serial
 import serial.tools.list_ports
+from io import StringIO
+import pandas as pd
 
 # --- Configuration ---
 BAUD_RATE = 115200
@@ -97,8 +99,11 @@ def process_packet(payload):
     return pin_states
 
 
-def get_time():
-    return datetime.now().strftime("%Y-%m-%d--%Hh%Mm%S,%f")[:-5]+'s'
+def get_time(use_deciseconds=True):
+    if use_deciseconds:
+        return datetime.now().strftime("%Y-%m-%d--%Hh%Mm%S,%f")[:-5]+'s'
+    else:
+        return datetime.now().strftime("%Y-%m-%d--%Hh%Mm%Ss")
 
 def comp_time(t1, t2, res=1):
     return [f'{(int(val) - int(t2))/1000:.{res}f}' for val in t1]
@@ -152,7 +157,7 @@ class Reader:
         if unix_time is None:
             unix_time = get_unix_time_ms()
         self.gtr_switch_times[unix_time] = "RESET"
-        self.save_port_data(temp=False)
+        self.save_port_data(temp=False, filetype="xlsx", use_deciseconds=False)
         self.gtr_reads = []
         self.gtr_switch_times = {unix_time: "RESET"}
 
@@ -181,12 +186,12 @@ class Reader:
                         "On" if nxt_gtr_reads else "Off"
                     )
 
-    def save_port_data(self, timestamp=None, temp=False):
+    def save_port_data(self, timestamp=None, temp=False, filetype='csv', use_deciseconds=True):
         if not self.gtr_switch_times:
             return None
 
         if timestamp is None:
-            timestamp = get_time()
+            timestamp = get_time(use_deciseconds)
 
         port_name = f"port-{self.port_num}--{timestamp}"
         keys_list = list(self.gtr_switch_times.keys())
@@ -199,9 +204,14 @@ class Reader:
             save_dir = save_dir / ".temp"
 
         save_dir.mkdir(parents=True, exist_ok=True)
-        with open(save_dir / f"{port_name}.csv", "w", encoding="utf-8") as f:
-            f.write(port_txt)
-
+        if filetype in ('csv', '.csv'):
+            with open(save_dir / f"{port_name}.csv", "w", encoding="utf-8") as f:
+                f.write(port_txt)
+        elif filetype in ('xlsx', '.xlsx'):
+            df = pd.read_csv(StringIO(port_txt))
+            df.to_excel(save_dir / f"{port_name}.xlsx", index=False)
+        else:
+            raise AssertionError("Variable 'filetype' must be csv or xlsx.")
         return port_txt
 
 
