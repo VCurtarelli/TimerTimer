@@ -20,4 +20,6 @@ v1.1.260805
 	Comunicações por CLI traduzidas para português.
 	Reduzida frequência de comunicação.
 	Aplicado ground virtual no Arduino.
+	Renomeado '/data/' para '/.data/'.
+	Bug fix: se desligado, segurar por 0.2s liga, mas segurar por mais 0.8s já desliga. Corrigido para não já desligar se continuar segurando.
 	
