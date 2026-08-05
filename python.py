@@ -39,7 +39,7 @@ def select_and_connect_port(baud_rate=BAUD_RATE):
     ports = list(serial.tools.list_ports.comports())
     if not ports:
         raise IOError(
-            "❌ No serial ports detected on this computer. Check USB connections."
+            "❌ Nenhuma porta serial detectada no computador. Verifique conexões USB."
         )
 
     matching_ports = []
@@ -56,28 +56,28 @@ def select_and_connect_port(baud_rate=BAUD_RATE):
     if len(matching_ports) == 1:
         auto_port = matching_ports[0]
         print(
-            f"🤖 Auto-detected device: {auto_port.device} ({auto_port.description})"
+            f"🤖 Dispositivo auto-detectado: {auto_port.device} ({auto_port.description})"
         )
         selected_port_name = auto_port.device
     else:
-        print("\n--- Available Serial Ports ---")
+        print("\n--- Portas Serial Disponíveis ---")
         for idx, port in enumerate(ports):
-            match_tag = " (Suggested)" if port in matching_ports else ""
+            match_tag = " (Sugestão)" if port in matching_ports else ""
             print(f" [{idx + 1}] {port.device} - {port.description}{match_tag}")
         while True:
             try:
-                choice = int(input("\nSelect port number to connect: ")) - 1
+                choice = int(input("\nSelecione o número da porta para conectar: ")) - 1
                 if 0 <= choice < len(ports):
                     selected_port_name = ports[choice].device
                     break
             except ValueError:
                 pass
-            print("Invalid selection.")
+            print("Seleção inválida.")
 
-    print(f"Connecting to {selected_port_name} at {baud_rate} baud...")
+    print(f"Conectando com {selected_port_name} a {baud_rate} baud...")
     ser = serial.Serial(selected_port_name, baud_rate, timeout=1)
     time.sleep(2)
-    print("✅ Connection established successfully!")
+    print("✅ Conexão estabelecida com sucesso!")
     return ser
 
 
@@ -86,7 +86,7 @@ def process_packet(payload):
     for byte in payload[0:6]:
         checksum ^= byte
     if checksum != payload[6]:
-        print("Checksum error! Packet corrupted/dropped.")
+        print("Erro de checksum! Pacote descartado.")
         return None
 
     data_bytes = payload[1:6]
@@ -116,7 +116,7 @@ def print_active_pins(pins, message_count):
     active_count = sum(pins)
     pins = ''.join([('1' if pin==True else '0') for pin in pins])
     pin_blocks = ' '.join([pins[i:i+10] for i in range(0, len(pins), 10)])
-    print(f"[{message_count}] Active Pins: {active_count}/40  |  {pin_blocks}")
+    print(f"[{message_count}] Pins ativos: {active_count}/40  |  {pin_blocks}")
 
 
 # --- Logic Classes ---
@@ -211,7 +211,7 @@ class Reader:
             df = pd.read_csv(StringIO(port_txt))
             df.to_excel(save_dir / f"{port_name}.xlsx", index=False)
         else:
-            raise AssertionError("Variable 'filetype' must be csv or xlsx.")
+            raise AssertionError("Variável 'filetype' deve ser 'csv' ou 'xlsx'.")
         return port_txt
 
 
@@ -359,7 +359,7 @@ class AppGUI(tk.Tk):
             icon_img = tk.PhotoImage(data=ICON_DATA)
             self.iconphoto(False, icon_img)
         except Exception as e:
-            print(f"Could not load icon: {e}")
+            print(f"Icone não pode ser carregado: {e}")
 
         self.processor = data_processor
         self.ser = serial_conn
@@ -428,7 +428,7 @@ class AppGUI(tk.Tk):
             except serial.SerialException:
                 break
             except Exception as e:
-                print(f"Error reading serial stream: {e}")
+                print(f"Erro lendo a stream serial: {e}")
 
     def poll_gui_updates(self):
         """Periodically refreshes the UI cards to mirror hardware state machines."""
@@ -450,6 +450,18 @@ def main():
     cwd = Path.cwd()
     (cwd / "data").mkdir(parents=True, exist_ok=True)
     (cwd / "medicoes").mkdir(parents=True, exist_ok=True)
+
+    print(r"""
+===============================================================================
+  _______ _____ __  __ ______ _____     _______ _____ __  __ ______ _____  
+ |__   __|_   _|  \/  |  ____|  __ \   |__   __|_   _|  \/  |  ____|  __ \ 
+    | |    | | | \  / | |__  | |__) |     | |    | | | \  / | |__  | |__) |
+    | |    | | | |\/| |  __| |  _  /      | |    | | | |\/| |  __| |  _  / 
+    | |   _| |_| |  | | |____| | \ \      | |   _| |_| |  | | |____| | \ \ 
+    |_|  |_____|_|  |_|______|_|  \_\     |_|  |_____|_|  |_|______|_|  \_\
+    
+===============================================================================
+""")
 
     # Establish Serial
     ser = select_and_connect_port(BAUD_RATE)
