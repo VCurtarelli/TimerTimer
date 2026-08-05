@@ -13,3 +13,5 @@ v1.1.260805
 	Reordenação dos pinos em arduino.ino.
 	Fatoração no código.
 	Pequenas outras modificações.
+	Adicionadas orientações e código para compilação.
+	Adicionado ícone.

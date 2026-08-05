@@ -1,0 +1,3 @@
+Precisa do package pyinstaller.
+
+Abre no CMD, e passa o comando ' pyinstaller --onefile --icon=assets/app_icon.ico -n "TimerTimer" python.py '
