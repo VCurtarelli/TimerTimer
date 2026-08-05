@@ -9,3 +9,7 @@ v1.1.260730
 	Adicionando uma GUI.
 	Mais um pouco de refatoração.
 	Adicionado um README.
+v1.1.260805
+	Reordenação dos pinos em arduino.ino.
+	Fatoração no código.
+	Pequenas outras modificações.

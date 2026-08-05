@@ -51,11 +51,14 @@ pelo botão físico do dispositivo) e salva o histórico de medições em arquiv
 4. Operação pela Interface Gráfica (GUI):
    - Leitura de Status (ON/OFF): Indica em tempo real o estado do pino de 
      medição (GTR).
-   - Botão [Enable / Disable]: Alterna a porta entre Enabled (Habilitada, realiza leituras) e Disabled (Desabilitada).
+   - Botão [Enable / Disable]: Alterna a porta entre Enabled (Habilitada,
+     realiza leituras) e Disabled (Desabilitada).
    - Botão [Reset]: Registra um ponto de reset no arquivo e limpa os dados da 
      amostragem atual.
      * NOTA: O botão [Reset] fica desativado (cinza) se a porta estiver 
        Desabilitada (Disabled).
+	 * NOTA: Os comandos de [Enable / Disable] e [Reset] também podem ser
+	   acionados pelos botões da caixa (vide orientações abaixo).
 
 
 -------------------------------------------------------------------------------
@@ -68,7 +71,7 @@ O software cria e gerencia automaticamente a seguinte estrutura de pastas:
   ├── data/                  Guarda os pacotes binários brutos (.bin)
   │
   └── medicoes/              Histórico e exportação dos dados (.csv)
-      └── .temp/             Arquivos temporários salvos a cada leitura
+      └── .temp/             Arquivos de backup salvos a cada leitura (.csv)
 
 
 -------------------------------------------------------------------------------

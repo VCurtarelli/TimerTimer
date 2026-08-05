@@ -23,7 +23,13 @@ ARDUINO_KEYWORDS = [
     "ttyusb",
 ]
 
-PORT_COLORS = ["#E5BF00", "#46E890", "#C0C0C0", "#202020"]
+COLOR_B = "#202020"
+COLOR_Y = "#E5BF00"
+COLOR_G = "#46E890"
+COLOR_W = "#E0E0E0"
+PORT_COLORS = [COLOR_W, COLOR_B, COLOR_Y, COLOR_G] * 4
+PORT_COLORS[-2] = COLOR_G
+PORT_COLORS[-1] = COLOR_Y
 
 
 # --- Existing Helpers & Serial Connections ---
@@ -92,7 +98,7 @@ def process_packet(payload):
 
 
 def get_time():
-    return datetime.now().strftime("%Y-%m-%d-%Hh%Mm%Ss")
+    return datetime.now().strftime("%Y-%m-%d--%Hh%Mm%S,%f")[:-5]+'s'
 
 def comp_time(t1, t2, res=1):
     return [f'{(int(val) - int(t2))/1000:.{res}f}' for val in t1]
@@ -111,7 +117,7 @@ def print_active_pins(pins, message_count):
 # --- Logic Classes ---
 class Reader:
 
-    def __init__(self, swt_pin, gtr_pin, direc):
+    def __init__(self, gtr_pin, swt_pin, direc):
         self.gtr_pin = gtr_pin
         self.swt_pin = swt_pin
         self.port_num = int(gtr_pin // 2 + 1)
@@ -325,8 +331,8 @@ class PortCard(tk.LabelFrame):
             # Gray-out and disable Reset button
             self.reset_btn.config(
                 state="disabled",
-                bg="#f0f0f0",
-                disabledforeground="#a1a1a1",
+                bg="#F8F8F8",
+                disabledforeground="#A1A1A1",
                 cursor="",
             )
 
@@ -343,12 +349,12 @@ class AppGUI(tk.Tk):
         self.cards = []
         self.is_running = True
 
-        # Render 4 rows x 5 columns grid
-        grid_frame = tk.Frame(self, bg="#e6e6e6", padx=10, pady=10)
+        # Render grid of 'ncols' columns x '20//ncols' rows
+        ncols = 5
+        grid_frame = tk.Frame(self, bg="#D0D0D0", padx=10, pady=10)
         grid_frame.pack()
 
         for idx, reader in enumerate(self.processor.readers):
-            ncols = 4
             row = idx // ncols
             col = idx % ncols
             color = PORT_COLORS[idx % len(PORT_COLORS)]
